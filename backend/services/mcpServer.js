@@ -1,20 +1,40 @@
+import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+dotenv.config({ path: path.join(__dirname, "../.env") });
+
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import Appointment from "./appointment.js";
-import connectToDatabase from "./database.js";
+import Appointment from "../models/appointment.js"; // Assuming you have an Appointment model defined
+import mongoose from "mongoose"; // Import mongoose for MongoDB connection
 
 // const NWS_API_BASE = "https://api.weather.gov";
 // const USER_AGENT = "weather-app/1.0";
 
-// Connect to MongoDB
-connectToDatabase().catch((error) => {
-  console.error("Failed to connect to MongoDB:", error);
-  process.exit(1);
-});
+const connectDB = async () => {
+  try {
+    const mongoUri = process.env.MONGODB_URI;
+    console.log("MongoDB URI:", mongoUri ? "Found" : "Not found");
+    if (!mongoUri) {
+      throw new Error("MONGODB_URI environment variable is not defined");
+    }
+    await mongoose.connect(mongoUri);
+    console.log("MongoDB connected successfully");
+  } catch (error) {
+    console.error("MongoDB connection error:", error);
+    process.exit(1);
+  }
+};
+
+// connectDB();
 
 const server = new McpServer({
-  name: "WeatherApp",
+  name: "Clinic Manager MCP",
   version: "1.0.0",
   capabilities: {
     resources: {},
@@ -220,9 +240,11 @@ server.tool(
 );
 
 async function main() {
+  await connectDB();
+  console.log("Connected to MongoDB");
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.log("WeatherApp server is running...");
+  console.log("Clinic Manager MCP server is running...");
 }
 
 main().catch((error) => {

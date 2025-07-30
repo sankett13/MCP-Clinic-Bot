@@ -1,14 +1,15 @@
 import express from "express";
 import dotenv from "dotenv";
-import connectToDatabase from "./connection.js";
+// import connectToDatabase from "./connection.js";
 dotenv.config();
 import McpRouter from "./routes/mcpRouter.js";
 
 const app = express();
 const PORT = process.env.PORT;
+// console.log(process.env.GEMINI_API_KEY, "GEMINI_API_KEY");
 
 // connnect to the database
-connectToDatabase();
+// connectToDatabase();
 
 // Middleware
 app.use(express.urlencoded({ extended: true }));
@@ -18,5 +19,5 @@ app.use(express.json());
 app.use("/mcp", McpRouter);
 
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+  console.log(`Server is running on port http://localhost:${PORT}`);
 });
