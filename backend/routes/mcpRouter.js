@@ -74,23 +74,45 @@ async function getAvailableTools() {
   }
 }
 
+async function updateAppointment(appointmentData) {
+  if (!mcpClient) {
+    throw new Error("MCP client not initialized. Please check server logs.");
+  }
+  try {
+    const result = await mcpClient.callTool({
+      name: "updateAppointment",
+      arguments: appointmentData,
+    });
+    if (!result || !result.content || !result.content[0]) {
+      throw new Error("Invalid response from MCP server");
+    }
+    return result.content[0].text; // Return as text, don't parse as JSON
+  } catch (error) {
+    console.error("Error calling MCP tool:", error);
+    throw new Error(`Error updating appointment: ${error.message}`);
+  }
+}
+
+async function deleteAppointment(appointmentData) {
+  if (!mcpClient) {
+    throw new Error("MCP client not initialized. Please check server logs.");
+  }
+  try {
+    const result = await mcpClient.callTool({
+      name: "deleteAppointment",
+      arguments: appointmentData,
+    });
+    if (!result || !result.content || !result.content[0]) {
+      throw new Error("Invalid response from MCP server");
+    }
+    return result.content[0].text; // Return as text, don't parse as JSON
+  } catch (error) {
+    console.error("Error calling MCP tool:", error);
+    throw new Error(`Error deleting appointment: ${error.message}`);
+  }
+}
+
 const functionDeclarations = [
-  {
-    name: "getWeather",
-    description:
-      "Fetch current weather data for a given location using coordinates. Use this when users ask about weather, temperature, conditions, or related questions.",
-    parameters: {
-      type: "object",
-      properties: {
-        location: {
-          type: "string",
-          description:
-            "Location coordinates in lat,lon format (e.g., '40.7128,-74.0060'). Extract coordinates from user input or ask for them if not provided.",
-        },
-      },
-      required: ["location"],
-    },
-  },
   {
     name: "listAvailableTools",
     description:
@@ -148,6 +170,76 @@ const functionDeclarations = [
       required: ["name"],
     },
   },
+  {
+    name: "updateAppointment",
+    description:
+      "Update an existing appointment with new details. Use this when users want to modify their appointment.",
+    parameters: {
+      type: "object",
+      properties: {
+        email: {
+          type: "string",
+          description: "Email address to find the appointment.",
+        },
+        currentDate: {
+          type: "string",
+          description: "Current date of the appointment (YYYY-MM-DD).",
+        },
+        currentTime: {
+          type: "string",
+          description: "Current time of the appointment (HH:mm).",
+        },
+        name: {
+          type: "string",
+          description: "Updated name of the person.",
+        },
+        phone: {
+          type: "string",
+          description: "Updated phone number of the person.",
+        },
+        newDate: {
+          type: "string",
+          description: "New date of the appointment (YYYY-MM-DD).",
+        },
+        newTime: {
+          type: "string",
+          description: "New time of the appointment (HH:mm).",
+        },
+      },
+      required: [
+        "email",
+        "currentDate",
+        "currentTime",
+        "name",
+        "phone",
+        "newDate",
+        "newTime",
+      ],
+    },
+  },
+  {
+    name: "deleteAppointment",
+    description:
+      "Delete an existing appointment. Use this when users want to cancel their appointment.",
+    parameters: {
+      type: "object",
+      properties: {
+        email: {
+          type: "string",
+          description: "Email address to find the appointment.",
+        },
+        date: {
+          type: "string",
+          description: "Date of the appointment to delete (YYYY-MM-DD).",
+        },
+        time: {
+          type: "string",
+          description: "Time of the appointment to delete (HH:mm).",
+        },
+      },
+      required: ["email", "date", "time"],
+    },
+  },
 ];
 
 router.get("/tools", async (req, res) => {
@@ -176,7 +268,7 @@ router.post("/chat", async (req, res) => {
           role: "user",
           parts: [
             {
-              text: "You are a helpful AI assistant with access to weather tools. When users ask about weather, temperature, conditions, or related questions, use the getWeather function with the appropriate coordinates. If users ask what tools you have or what you can do, use the listAvailableTools function. Always be helpful and use the tools when appropriate.",
+              text: "You are a helpful AI assistant for a clinic manager. You can help users book, check, and update appointments using the available clinic tools. When users want to book an appointment, use the createAppointment function. If they want to check their appointments, use the checkForAppointments function. To update an appointment, use the updateAppointment function. If users ask what you can do, use the listAvailableTools function. Always be helpful and use the clinic tools when appropriate.",
             },
           ],
         },
@@ -184,7 +276,7 @@ router.post("/chat", async (req, res) => {
           role: "model",
           parts: [
             {
-              text: "I understand! I'm an AI assistant with access to weather tools. I can help you get current weather information for any location using coordinates, and I can tell you what tools I have available. How can I help you today?",
+              text: "I understand! I'm an AI assistant for the clinic. I can help you book, check, or update appointments, and I can tell you what tools are available. How can I assist you today?",
             },
           ],
         },
@@ -205,21 +297,21 @@ router.post("/chat", async (req, res) => {
         try {
           let functionResult;
 
-          if (call.name === "getWeather") {
-            // const weatherData = await getWeatherData(call.args.location);
-            console.log("Fetching weather data");
-            functionResult = JSON.stringify(weatherData, null, 2);
+          if (call.name === "createAppointment") {
+            const createResult = await createAppointment(call.args);
+            functionResult = JSON.stringify(createResult, null, 2);
+          } else if (call.name === "updateAppointment") {
+            const updateResult = await updateAppointment(call.args);
+            functionResult = JSON.stringify(updateResult, null, 2);
+          } else if (call.name === "checkForAppointments") {
+            const checkResult = await checkForAppointments(call.args.name);
+            functionResult = JSON.stringify(checkResult, null, 2);
+          } else if (call.name === "deleteAppointment") {
+            const deleteResult = await deleteAppointment(call.args);
+            functionResult = JSON.stringify(deleteResult, null, 2);
           } else if (call.name === "listAvailableTools") {
             const tools = await getAvailableTools();
             functionResult = JSON.stringify(tools, null, 2);
-          } else if (call.name === "createAppointment") {
-            const getCreateAppointment = await createAppointment(call.args);
-            functionResult = JSON.stringify(getCreateAppointment, null, 2);
-          } else if (call.name === "checkForAppointments") {
-            const getCheckForAppointments = await checkForAppointments(
-              call.args.name
-            );
-            functionResult = JSON.stringify(getCheckForAppointments, null, 2);
           } else {
             functionResult = `Unknown function: ${call.name}`;
           }

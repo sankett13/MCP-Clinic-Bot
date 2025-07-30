@@ -169,7 +169,7 @@ server.tool(
         };
       }
       const appointment = new Appointment({
-        name: input.name,
+        name: input.name.toLowerCase(),
         email: input.email,
         phone: input.phone,
         date: new Date(input.date),
@@ -207,7 +207,9 @@ server.tool(
   },
   async (input) => {
     try {
-      const appointments = await Appointment.find({ name: input.name });
+      const appointments = await Appointment.find({
+        name: input.name.toLowerCase(),
+      });
       if (appointments.length === 0) {
         return {
           content: [
@@ -232,6 +234,143 @@ server.tool(
           {
             type: "text",
             text: `Error fetching appointments: ${error.message}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
+server.tool(
+  "updateAppointment",
+  "Update an existing appointment",
+  {
+    email: z.string().email().describe("Email address to find the appointment"),
+    currentDate: z
+      .string()
+      .describe("Current date of the appointment (YYYY-MM-DD)"),
+    currentTime: z.string().describe("Current time of the appointment (HH:mm)"),
+    name: z.string().describe("Updated name of the person"),
+    phone: z.string().describe("Updated phone number of the person"),
+    newDate: z.string().describe("New date of the appointment (YYYY-MM-DD)"),
+    newTime: z.string().describe("New time of the appointment (HH:mm)"),
+  },
+  async (input) => {
+    try {
+      // Find the appointment by email, current date, and current time
+      const existingAppointment = await Appointment.findOne({
+        email: input.email,
+        date: new Date(input.currentDate),
+        time: input.currentTime,
+      });
+
+      if (!existingAppointment) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `No appointment found for email ${input.email} on ${input.currentDate} at ${input.currentTime}. Please check the details and try again.`,
+            },
+          ],
+        };
+      }
+
+      // Check if the new time slot is available (if different from current)
+      if (
+        input.newDate !== input.currentDate ||
+        input.newTime !== input.currentTime
+      ) {
+        const conflictingAppointment = await Appointment.findOne({
+          date: new Date(input.newDate),
+          time: input.newTime,
+          _id: { $ne: existingAppointment._id }, // Exclude the current appointment
+        });
+
+        if (conflictingAppointment) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `An appointment already exists for ${input.newDate} at ${input.newTime}. Please choose a different time or date.`,
+              },
+            ],
+          };
+        }
+      }
+
+      // Update the appointment
+      const updatedAppointment = await Appointment.findByIdAndUpdate(
+        existingAppointment._id,
+        {
+          name: input.name.toLowerCase(),
+          phone: input.phone,
+          date: new Date(input.newDate),
+          time: input.newTime,
+        },
+        { new: true, runValidators: true }
+      );
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Appointment updated successfully for ${input.name}. Changed from ${input.currentDate} at ${input.currentTime} to ${input.newDate} at ${input.newTime}.`,
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error updating appointment: ${error.message}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
+server.tool(
+  "deleteAppointment",
+  {
+    email: z.string().email().describe("Email address to find the appointment"),
+    date: z.string().describe("Date of the appointment (YYYY-MM-DD)"),
+    time: z.string().describe("Time of the appointment (HH:mm)"),
+  },
+  async (input) => {
+    try {
+      const deletedAppointment = await Appointment.findOneAndDelete({
+        email: input.email,
+        date: new Date(input.date),
+        time: input.time,
+      });
+
+      if (!deletedAppointment) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `No appointment found for email ${input.email} on ${input.date} at ${input.time}.`,
+            },
+          ],
+        };
+      }
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Appointment deleted successfully for ${input.email} on ${input.date} at ${input.time}.`,
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error deleting appointment: ${error.message}`,
           },
         ],
       };
