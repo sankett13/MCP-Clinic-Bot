@@ -1,5 +1,6 @@
 import express from "express";
 import dotenv from "dotenv";
+import cors from "cors";
 // import connectToDatabase from "./connection.js";
 dotenv.config();
 import McpRouter from "./routes/mcpRouter.js";
@@ -12,6 +13,12 @@ const PORT = process.env.PORT;
 // connectToDatabase();
 
 // Middleware
+app.use(
+  cors({
+    origin: ["http://localhost:5173", "http://localhost:3000"],
+    credentials: true,
+  })
+);
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 

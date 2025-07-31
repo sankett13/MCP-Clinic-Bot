@@ -3,9 +3,13 @@ import react from "@vitejs/plugin-react";
 
 // https://vite.dev/config/
 export default defineConfig({
-  proxy: {
-    "/api": {
-      target: "http://localhost:8000",
+  server: {
+    proxy: {
+      "/mcp": {
+        target: "http://localhost:8000",
+        changeOrigin: true,
+        secure: false,
+      },
     },
   },
   plugins: [react()],
