@@ -288,33 +288,42 @@ router.get("/tools", async (req, res) => {
 
 router.post("/chat", async (req, res) => {
   try {
-    const { message } = req.body;
+    const { message, history = [] } = req.body;
     console.log("Received message:", message);
+    console.log("Received history length:", history.length);
 
     const model = genAI.getGenerativeModel({
       model: "gemini-2.0-flash",
       tools: [{ functionDeclarations }],
     });
 
+    // Build initial history with system prompt
+    let chatHistory = [
+      {
+        role: "user",
+        parts: [
+          {
+            text: "You are a helpful AI assistant for a clinic manager. You can help users book, check, and update appointments using the available clinic tools. When users want to book an appointment, use the createAppointment function. If they want to check their appointments, use the checkForAppointments function. To update an appointment, use the updateAppointment function. If users ask what you can do, use the listAvailableTools function. Always be helpful and use the clinic tools when appropriate.",
+          },
+        ],
+      },
+      {
+        role: "model",
+        parts: [
+          {
+            text: "I understand! I'm an AI assistant for the clinic. I can help you book, check, or update appointments, and I can tell you what tools are available. How can I assist you today?",
+          },
+        ],
+      },
+    ];
+
+    // Add previous conversation history if provided
+    if (history && history.length > 0) {
+      chatHistory = [...chatHistory, ...history];
+    }
+
     const chat = model.startChat({
-      history: [
-        {
-          role: "user",
-          parts: [
-            {
-              text: "You are a helpful AI assistant for a clinic manager. You can help users book, check, and update appointments using the available clinic tools. When users want to book an appointment, use the createAppointment function. If they want to check their appointments, use the checkForAppointments function. To update an appointment, use the updateAppointment function. If users ask what you can do, use the listAvailableTools function. Always be helpful and use the clinic tools when appropriate.",
-            },
-          ],
-        },
-        {
-          role: "model",
-          parts: [
-            {
-              text: "I understand! I'm an AI assistant for the clinic. I can help you book, check, or update appointments, and I can tell you what tools are available. How can I assist you today?",
-            },
-          ],
-        },
-      ],
+      history: chatHistory,
     });
 
     let result = await chat.sendMessage(message);
@@ -377,12 +386,49 @@ router.post("/chat", async (req, res) => {
 
     const text = response.text();
 
+    // Create updated history by adding the current user message and bot response
+    let updatedHistory = [
+      ...history,
+      {
+        role: "user",
+        parts: [{ text: message }],
+      },
+    ];
+
+    // If there were function calls, add them to the history
+    if (functionCalls && functionCalls.length > 0) {
+      // Add the function call response
+      updatedHistory.push({
+        role: "model",
+        parts: [
+          {
+            functionCall: functionCalls[0], // For simplicity, just track the first function call
+          },
+        ],
+      });
+
+      // Add the function results
+      updatedHistory.push({
+        role: "function",
+        parts: toolResults.map((result) => ({
+          functionResponse: result.functionResponse,
+        })),
+      });
+    }
+
+    // Add the final model response
+    updatedHistory.push({
+      role: "model",
+      parts: [{ text: text }],
+    });
+
     res.json({
       response: text,
       functionsUsed: functionCalls
         ? functionCalls.map((call) => call.name)
         : [],
       toolResults: toolResults.length > 0,
+      history: updatedHistory, // Include updated history for the client
     });
   } catch (error) {
     console.error("Chat API error:", error);

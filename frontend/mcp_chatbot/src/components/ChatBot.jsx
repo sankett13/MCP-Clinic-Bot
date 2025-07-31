@@ -1,5 +1,13 @@
 import { useState, useRef, useEffect } from "react";
-import { MessageCircle, X, Send, Bot, User, Loader2 } from "lucide-react";
+import {
+  MessageCircle,
+  X,
+  Send,
+  Bot,
+  User,
+  Loader2,
+  RotateCcw,
+} from "lucide-react";
 
 const ChatBot = ({ isOpen, onToggle }) => {
   const [messages, setMessages] = useState([
@@ -14,6 +22,7 @@ const ChatBot = ({ isOpen, onToggle }) => {
   const [inputMessage, setInputMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [chatHistory, setChatHistory] = useState([]); // Add chat history state
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -65,6 +74,7 @@ const ChatBot = ({ isOpen, onToggle }) => {
         },
         body: JSON.stringify({
           message: userMessage.content,
+          history: chatHistory, // Include chat history in the request
         }),
       });
 
@@ -73,6 +83,11 @@ const ChatBot = ({ isOpen, onToggle }) => {
       }
 
       const data = await response.json();
+
+      // Update chat history with the new conversation
+      if (data.history) {
+        setChatHistory(data.history);
+      }
 
       const botMessage = {
         id: messages.length + 2,
@@ -118,13 +133,26 @@ const ChatBot = ({ isOpen, onToggle }) => {
   const quickActions = [
     "Book an appointment",
     "Check my appointments",
-    "What services do you offer?",
+    "What services are provided by CareWell?",
     "What are your office hours?",
     "How can I contact the clinic?",
   ];
 
   const handleQuickAction = (action) => {
     setInputMessage(action);
+  };
+
+  const resetChat = () => {
+    setMessages([
+      {
+        id: 1,
+        type: "bot",
+        content:
+          "Hello! I'm your CareWell Medical Assistant. I can help you book appointments, check existing appointments, answer questions about our clinic, and provide general health information. How can I assist you today?",
+        timestamp: new Date(),
+      },
+    ]);
+    setChatHistory([]);
   };
 
   return (
@@ -164,13 +192,23 @@ const ChatBot = ({ isOpen, onToggle }) => {
                 </p>
               </div>
             </div>
-            {/* Close button for mobile */}
-            <button
-              onClick={onToggle}
-              className="md:hidden p-2 rounded-full hover:bg-blue-500 active:bg-blue-700 transition-colors touch-manipulation"
-            >
-              <X className="h-5 w-5 text-white" />
-            </button>
+            <div className="flex items-center space-x-2">
+              {/* Reset button */}
+              <button
+                onClick={resetChat}
+                className="p-2 rounded-full hover:bg-blue-500 active:bg-blue-700 transition-colors touch-manipulation"
+                title="Reset conversation"
+              >
+                <RotateCcw className="h-4 w-4 text-white" />
+              </button>
+              {/* Close button for mobile */}
+              <button
+                onClick={onToggle}
+                className="md:hidden p-2 rounded-full hover:bg-blue-500 active:bg-blue-700 transition-colors touch-manipulation"
+              >
+                <X className="h-5 w-5 text-white" />
+              </button>
+            </div>
           </div>
 
           {/* Messages */}
