@@ -1,20 +1,19 @@
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
+import Appointment from "../models/appointment.js";
+import mongoose from "mongoose";
+import { initializeChromaDB } from "./initializeChromaDB.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 dotenv.config({ path: path.join(__dirname, "../.env") });
 
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { z } from "zod";
-import Appointment from "../models/appointment.js"; // Assuming you have an Appointment model defined
-import mongoose from "mongoose"; // Import mongoose for MongoDB connection
-
-// const NWS_API_BASE = "https://api.weather.gov";
-// const USER_AGENT = "weather-app/1.0";
+let collection;
 
 const connectDB = async () => {
   try {
@@ -30,8 +29,6 @@ const connectDB = async () => {
     process.exit(1);
   }
 };
-
-// connectDB();
 
 const server = new McpServer({
   name: "Clinic Manager MCP",
@@ -53,94 +50,6 @@ server.resource(
   "Service Status",
   "Current status of the weather service"
 );
-
-// server.tool(
-//   "getWeather",
-//   "Fetch current weather data for a given location",
-//   {
-//     location: z
-//       .string()
-//       .describe(
-//         "The location for which to fetch weather data (lat,lon format)"
-//       ),
-//   },
-//   async (input) => {
-//     try {
-//       const response = await fetch(`${NWS_API_BASE}/points/${input.location}`, {
-//         headers: {
-//           "User-Agent": USER_AGENT,
-//         },
-//       });
-
-//       if (!response.ok) {
-//         throw new Error(`Failed to fetch weather data: ${response.statusText}`);
-//       }
-
-//       const pointsData = await response.json();
-
-//       // Get the forecast URL from the points data
-//       const forecastUrl = pointsData.properties?.forecast;
-//       if (!forecastUrl) {
-//         throw new Error("No forecast URL found for this location");
-//       }
-
-//       // Fetch the actual forecast
-//       const forecastResponse = await fetch(forecastUrl, {
-//         headers: {
-//           "User-Agent": USER_AGENT,
-//         },
-//       });
-
-//       if (!forecastResponse.ok) {
-//         throw new Error(
-//           `Failed to fetch forecast: ${forecastResponse.statusText}`
-//         );
-//       }
-
-//       const forecastData = await forecastResponse.json();
-//       const currentPeriod = forecastData.properties?.periods?.[0];
-
-//       return {
-//         content: [
-//           {
-//             type: "text",
-//             text: JSON.stringify(
-//               {
-//                 location: input.location,
-//                 name: currentPeriod?.name || "Current",
-//                 temperature: currentPeriod?.temperature
-//                   ? `${currentPeriod.temperature}°${currentPeriod.temperatureUnit}`
-//                   : "N/A",
-//                 conditions: currentPeriod?.shortForecast || "N/A",
-//                 detailedForecast: currentPeriod?.detailedForecast || "N/A",
-//                 windSpeed: currentPeriod?.windSpeed || "N/A",
-//                 windDirection: currentPeriod?.windDirection || "N/A",
-//               },
-//               null,
-//               2
-//             ),
-//           },
-//         ],
-//       };
-//     } catch (error) {
-//       return {
-//         content: [
-//           {
-//             type: "text",
-//             text: JSON.stringify(
-//               {
-//                 error: error.message,
-//                 location: input.location,
-//               },
-//               null,
-//               2
-//             ),
-//           },
-//         ],
-//       };
-//     }
-//   }
-// );
 
 server.tool(
   "createAppointment",
@@ -378,9 +287,63 @@ server.tool(
   }
 );
 
+server.tool(
+  "ClinicInfo",
+  "Get clinic information",
+  {
+    queryText: z
+      .string()
+      .describe("Query text to get information about the clinic"),
+  },
+  async (input) => {
+    try {
+      console.log("Received query:", input.queryText);
+
+      if (!collection) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "ChromaDB collection is not initialized yet. Please try again.",
+            },
+          ],
+        };
+      }
+
+      const result = await collection.query({
+        queryTexts: [input.queryText],
+        nResults: 2,
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: result.documents.join("\n\n"),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error querying clinic information: ${error.message}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
 async function main() {
   await connectDB();
   console.log("Connected to MongoDB");
+
+  // Initialize ChromaDB collection
+  collection = await initializeChromaDB();
+  console.log("ChromaDB collection initialized");
+
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.log("Clinic Manager MCP server is running...");

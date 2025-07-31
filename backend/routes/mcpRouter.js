@@ -112,6 +112,25 @@ async function deleteAppointment(appointmentData) {
   }
 }
 
+async function ClinicInfo(queryText) {
+  if (!mcpClient) {
+    throw new Error("MCP client not initialized. Please check server logs.");
+  }
+  try {
+    const result = await mcpClient.callTool({
+      name: "ClinicInfo",
+      arguments: { queryText },
+    });
+    if (!result || !result.content || !result.content[0]) {
+      throw new Error("Invalid response from MCP server");
+    }
+    return result.content[0].text; // Return as text, don't parse as JSON
+  } catch (error) {
+    console.error("Error calling MCP tool:", error);
+    throw new Error(`Error fetching clinic info: ${error.message}`);
+  }
+}
+
 const functionDeclarations = [
   {
     name: "listAvailableTools",
@@ -240,6 +259,21 @@ const functionDeclarations = [
       required: ["email", "date", "time"],
     },
   },
+  {
+    name: "ClinicInfo",
+    description:
+      "Get information about the clinic based on a query text. Use this when users ask questions about the clinic, its services, or other related queries.",
+    parameters: {
+      type: "object",
+      properties: {
+        queryText: {
+          type: "string",
+          description: "The query text to get information about the clinic.",
+        },
+      },
+      required: ["queryText"],
+    },
+  },
 ];
 
 router.get("/tools", async (req, res) => {
@@ -312,6 +346,9 @@ router.post("/chat", async (req, res) => {
           } else if (call.name === "listAvailableTools") {
             const tools = await getAvailableTools();
             functionResult = JSON.stringify(tools, null, 2);
+          } else if (call.name === "ClinicInfo") {
+            const clinicInfodata = await ClinicInfo(call.args.queryText);
+            functionResult = JSON.stringify(clinicInfodata, null, 2);
           } else {
             functionResult = `Unknown function: ${call.name}`;
           }
