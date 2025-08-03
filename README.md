@@ -294,9 +294,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [ChromaDB](https://www.trychroma.com/) for vector database capabilities
 - [React](https://react.dev/) and [Vite](https://vitejs.dev/) for the frontend framework
 
-## 📞 Support
-
-If you have any questions or need help setting up the project, please open an issue or contact the maintainer.
 
 ---
 
